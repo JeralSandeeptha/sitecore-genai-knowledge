@@ -1,3 +1,13 @@
 .env*
 docker
 app/data
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env
+.git
+.gitignore
+venv
+.idea
+.vscode
