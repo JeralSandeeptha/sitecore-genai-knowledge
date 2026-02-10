@@ -34,12 +34,16 @@ app.add_middleware(
 
 qdrant = get_qdrant_client();
 
-# Health Checking
+###################
+# Health Checking #
+###################
 @app.get("/api/v1/health")
 def health():
     return {"statusCode": "200", "message": "Knowledge Service is running", "data": "Knowledge Service is running" };
 
-# This is for OpenAI emmbeddings
+##################################
+# This is for OpenAI emmbeddings #
+##################################
 @app.post("/update_vector")
 def upsert_vector():
     # Dummy Data File Path
@@ -121,7 +125,19 @@ def upsert_vector():
     return {"message": "Vector stored", "stored_points": len(vector) };
     # return {"message": "Vector stored", "stored_points": len(all_points) };
 
-# Create components
+######################################################
+######################################################
+######################################################
+######################################################
+################### Create resources #################
+######################################################
+######################################################
+######################################################
+######################################################
+
+#####################
+# Create components #
+#####################
 @app.post("/update_components")
 def updatedb():
     file_path = Path(__file__).parent / "data" / "components.json"
@@ -176,7 +192,9 @@ def updatedb():
 
     return {"message": "Vector components stored", "stored_points": len(all_points)}
 
-# Create stories
+###################
+# Create stories #
+##################
 @app.post("/update_stories")
 def updatedb():
     file_path = Path(__file__).parent / "data" / "stories.json"
@@ -231,7 +249,9 @@ def updatedb():
 
     return {"message": "Vector stories stored", "stored_points": len(all_points)}
 
-# Create ts
+#############
+# Create ts #
+#############
 @app.post("/update_ts")
 def updatedb():
     file_path = Path(__file__).parent / "data" / "ts.json"
@@ -286,7 +306,74 @@ def updatedb():
 
     return {"message": "Vector ts stored", "stored_points": len(all_points)}
 
-# Load components
+####################
+# Create Templates #
+####################
+@app.post("/update_templates")
+def updatedb():
+    file_path = Path(__file__).parent / "data" / "templates.json"
+
+    if not file_path.exists():
+        return {"message": "File not found", "path": str(file_path)}
+
+    with open(file_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    components = data.get("data", [])
+    if not components:
+        return {"message": "No data found", "data": []}
+
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=10000, chunk_overlap=1000)
+    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+
+    all_points = []
+
+    for idx, comp in enumerate(components):
+        content = comp.get("content", "")
+        metadata = comp.get("metadata", {})
+
+        chunks = text_splitter.split_text(content)
+
+        for i, chunk in enumerate(chunks):
+            vector = embeddings.embed_query(chunk)
+            point_id = idx * 1_000_000 + i;
+            point = PointStruct(
+                id=point_id,
+                vector=vector,
+                payload={
+                    "text": chunk,
+                    "metadata": metadata
+                }
+            );
+            all_points.append(point)
+
+    # Create collection if it doesn't exist
+    if "templates_collection" not in [c.name for c in qdrant.get_collections().collections]:
+        qdrant.recreate_collection(
+            collection_name="templates_collection",
+            vectors_config=VectorParams(
+                size=len(all_points[0].vector),
+                distance=Distance.COSINE
+            )
+        );
+
+    qdrant.upsert(collection_name="templates_collection", points=all_points)
+
+    return {"message": "Vector templates stored", "stored_points": len(all_points)}
+
+######################################################
+######################################################
+######################################################
+######################################################
+################### Load resources ###################
+######################################################
+######################################################
+######################################################
+######################################################
+
+###################
+# Load components #
+###################
 @app.post("/load_components")
 def upsert_vector():
     loader = GithubFileLoader(
@@ -311,7 +398,9 @@ def upsert_vector():
         for d in docs
     ] };
 
-# Load stories
+################
+# Load stories #
+################
 @app.post("/load_stories")
 def upsert_vector():
     loader = GithubFileLoader(
@@ -332,7 +421,9 @@ def upsert_vector():
         for d in docs
     ] };
 
-# Load ts files
+#################
+# Load ts files #
+#################
 @app.post("/load_ts")
 def upsert_vector():
     loader = GithubFileLoader(
@@ -353,9 +444,36 @@ def upsert_vector():
         for d in docs
     ] };
 
-# Get data
+##################
+# Load templates #
+##################
+@app.post("/load_templates")
+def upsert_vector():
+    loader = GithubFileLoader(
+        repo="JeralSandeeptha/sitecore-genai-data",
+        branch="main",
+        access_token=envConfig["GITHUB_PERSONAL_ACCESS_TOKEN"],
+        github_api_url="https://api.github.com",
+        file_filter=lambda path: path.startswith("components/") and path.endswith((".md"))
+    );
+    docs = loader.load();
+    print(loader);
+    print(docs);
+    return {"message": "Vectors templates Loaded", "data": [
+        {
+            "content": d.page_content,
+            "metadata": d.metadata,
+        }
+        for d in docs
+    ] };
+
+############
+# Get data #
+############
 @app.get("/api/v1/search")
 def search_vector(query: str = Query(..., description="Search query")):
+
+    print(query);
 
     embeddings = HuggingFaceEmbeddings(
         model_name="sentence-transformers/all-MiniLM-L6-v2"
@@ -395,5 +513,5 @@ def search_vector(query: str = Query(..., description="Search query")):
         for point in normalized_points
     ];
 
-    return { "statusCode": 200, "message": "Vector retrieved", "data": points };
+    return { "statusCode": 200, "message": "Vectors retrieved", "data": points };
 
