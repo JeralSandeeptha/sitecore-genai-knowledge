@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware;
 load_dotenv();
 
 origins = [
-    "http://localhost:6001",
+    "http://localhost:5000",
     "http://localhost:5173",
 ];
 
