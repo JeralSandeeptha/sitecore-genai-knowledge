@@ -1,6 +1,5 @@
 .env*
 docker
-app/data
 __pycache__
 *.pyc
 *.pyo
