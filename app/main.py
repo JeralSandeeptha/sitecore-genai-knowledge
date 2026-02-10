@@ -467,13 +467,25 @@ def upsert_vector():
         for d in docs
     ] };
 
+##########
+# Helper #
+##########
+def normalize_point(point):
+    payload = point.payload or {}
+
+    return {
+        "source": payload.get("metadata").get("source"),
+        "text": payload.get("text")
+    }
+
+def normalize_points(points):
+    return [normalize_point(point) for point in points]
+
 ############
 # Get data #
 ############
 @app.get("/api/v1/search")
 def search_vector(query: str = Query(..., description="Search query")):
-
-    print(query);
 
     embeddings = HuggingFaceEmbeddings(
         model_name="sentence-transformers/all-MiniLM-L6-v2"
@@ -483,35 +495,31 @@ def search_vector(query: str = Query(..., description="Search query")):
     query_vector = embeddings.embed_query(query);
 
     # 2. Search in Qdrant
-    points = qdrant.query_points(
+    components_points = qdrant.query_points(
         collection_name="components_collection",
         query=query_vector,
         with_payload=True
     );
 
-    print(points);
+    stories_points = qdrant.query_points(
+        collection_name="stories_collection",
+        query=query_vector,
+        with_payload=True
+    );
+    
+    templates_points = qdrant.query_points(
+        collection_name="templates_collection",
+        query=query_vector,
+        with_payload=True
+    );
 
-    # 3. Format results
-    # Normalize safely
-    normalized_points = [];
-    for item in points:
-        if isinstance(item, ScoredPoint):
-            normalized_points.append(item)
-        elif isinstance(item, tuple):
-            for elem in item:
-                if isinstance(elem, ScoredPoint):
-                    normalized_points.append(elem)
-                    break
-
-    simplifiedPoints = [
-        {
-            "id": point.id,
-            "score": point.score,
-            "path": point.payload.get("metadata", {}).get("path") if point.payload else None,
-            "text": point.payload.get("text") if point.payload else None
+    return {
+        "statusCode": 200,
+        "message": "Vectors retrieved",
+        "data": {
+            "components_points": normalize_points(components_points.points),
+            "stories_points": normalize_points(stories_points.points),
+            "templates_points": normalize_points(templates_points.points),
         }
-        for point in normalized_points
-    ];
-
-    return { "statusCode": 200, "message": "Vectors retrieved", "data": points };
+    }
 
