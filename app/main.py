@@ -513,6 +513,12 @@ def search_vector(query: str = Query(..., description="Search query")):
         with_payload=True
     );
 
+    ts_points = qdrant.query_points(
+        collection_name="ts_collection",
+        query=query_vector,
+        with_payload=True
+    );
+
     return {
         "statusCode": 200,
         "message": "Vectors retrieved",
@@ -520,6 +526,7 @@ def search_vector(query: str = Query(..., description="Search query")):
             "components_points": normalize_points(components_points.points),
             "stories_points": normalize_points(stories_points.points),
             "templates_points": normalize_points(templates_points.points),
+            "ts_points": normalize_points(ts_points.points),
         }
     }
 
